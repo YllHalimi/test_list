@@ -1,5 +1,6 @@
 using MatchingApp.Models.Dtos;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace MatchingApp.Controllers
 {
@@ -8,26 +9,82 @@ namespace MatchingApp.Controllers
     public class UsersController : ControllerBase
     {
         private readonly ILogger<UsersController> _logger;
+        private readonly ApplicationDbContext _context;
 
-        public UsersController(ILogger<UsersController> logger)
+        public UsersController(ILogger<UsersController> logger, ApplicationDbContext context)
         {
             _logger = logger;
+            _context = context;
         }
 
-        // YOUR CODE HERE
-        // Here you will have to create 4 endpoints based on these requirements
-        /*
-            1. Top N Active Users with Highest Credits:
-            You should find the top N users (e.g., N = 5) with the highest Credits who are also Active. You should sort the data by Credits in descending order using LINQ.
+        [HttpGet("TopActiveUsers")]
+        public async Task<IActionResult> GetTopActiveUsers(int n = 5)
+        {
+            var topUsers = await _context.Users
+                .Where(u => u.Active)
+                .OrderByDescending(u => u.Credits)
+                .Take(n)
+                .ToListAsync();
 
-            2. Average Credits by Gender:
-            You should calculate the average Credits first for both male and female users, then group the data by gender and compute the average.
+            return Ok(topUsers);
+        }
 
-            3. Youngest and Oldest Active Users:
-            Identify the youngest and oldest Active users.
+        [HttpGet("AverageCreditsByGender")]
+        public async Task<IActionResult> GetAverageCreditsByGender()
+        {
+            var averageCreditsByGender = await _context.Users
+                .Where(u => u.Active)
+                .GroupBy(u => u.Gender)
+                .Select(g => new
+                {
+                    Gender = g.Key,
+                    AverageCredits = g.Average(u => u.Credits)
+                })
+                .ToListAsync();
 
-            4. Total Credits by Age Group:
-            Group users into age brackets (0-15, 15-30, 30-45, 45-60, 60-75, 75-90, 90-105). Then, calculate the total Credits for each age group.
-         */
+            return Ok(averageCreditsByGender);
+        }
+
+        [HttpGet("YoungestAndOldestActiveUsers")]
+        public async Task<IActionResult> GetYoungestAndOldestActiveUsers()
+        {
+            var youngestUser = await _context.Users
+                .Where(u => u.Active)
+                .OrderBy(u => u.Age)
+                .FirstOrDefaultAsync();
+
+            var oldestUser = await _context.Users
+                .Where(u => u.Active)
+                .OrderByDescending(u => u.Age)
+                .FirstOrDefaultAsync();
+
+            return Ok(new
+            {
+                YoungestUser = youngestUser,
+                OldestUser = oldestUser
+            });
+        }
+
+        [HttpGet("TotalCreditsByAgeGroup")]
+        public async Task<IActionResult> GetTotalCreditsByAgeGroup()
+        {
+            var totalCreditsByAgeGroup = await _context.Users
+                .Where(u => u.Active)
+                .GroupBy(u =>
+                    u.Age <= 15 ? "0-15" :
+                    u.Age <= 30 ? "15-30" :
+                    u.Age <= 45 ? "30-45" :
+                    u.Age <= 60 ? "45-60" :
+                    u.Age <= 75 ? "60-75" :
+                    u.Age <= 90 ? "75-90" : "90-105")
+                .Select(g => new
+                {
+                    AgeGroup = g.Key,
+                    TotalCredits = g.Sum(u => u.Credits)
+                })
+                .ToListAsync();
+
+            return Ok(totalCreditsByAgeGroup);
+        }
     }
 }
